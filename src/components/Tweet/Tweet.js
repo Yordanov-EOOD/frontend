@@ -1,4 +1,4 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
 import moment from "moment";
@@ -89,57 +89,109 @@ const Wrapper = styled.div`
   }
 `;
 
-const Tweet = ({ tweet }) => {
+// Convert to forwardRef to accept refs from parent components
+const Tweet = forwardRef(({ tweet }, ref) => {
+  // Error handling - if tweet data is missing or malformed, render fallback
+  if (!tweet) {
+    console.error("Tweet component received null or undefined tweet data");
+    return (
+      <Wrapper>
+        <div className="tweet-info">
+          <div className="tweet-info-user">
+            <span className="secondary">Tweet data unavailable</span>
+          </div>
+        </div>
+      </Wrapper>
+    );
+  }
+
+  // Map backend response fields to the component's expected structure
   const {
-    id,
-    text,
-    tags,
-    user,
-    files,
-    isTweetMine,
-    isLiked,
-    likesCount,
-    isRetweet,
-    retweetsCount,
-    commentsCount,
-    createdAt,
+    id = '',
+    content = '',  // 'content' in API response maps to 'text' in component
+    image = null,  // 'image' in API response maps to files
+    author = {},   // author contains username which maps to handle
+    publishedAt = new Date().toISOString(), // 'publishedAt' maps to 'createdAt'
+    impressions = 0 // Fix typo: 'impresions' -> 'impressions'
   } = tweet;
 
-  const strList = text.split(" ");
+  // Create a compatible structure for the component
+  const text = content;
+  const createdAt = publishedAt;
+  const likesCount = impressions; // Use corrected property name
+  const files = image ? [{ url: image }] : [];
+  const tags = [];  // tags are not in the response, default to empty
+  const commentsCount = 0;  // not in response, default to 0
+  const retweetsCount = 0;  // not in response, default to 0
+  
+  // User data mapping
+  const user = {
+    handle: author?.username || 'unknown',
+    fullname: author?.username || 'Unknown User',
+    avatar: ''  // avatar not provided in response
+  };
+  
+  // Get authentication info from localStorage
+  const token = localStorage.getItem('token');
+  const currentUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
+  
+  // Check if this tweet belongs to the current user
+  const isTweetMine = currentUser?.id && author?.id && currentUser.id === author.id;
+  const isLiked = false; // Default value, update this based on your API response
+  const isRetweet = false; // Default value, update this based on your API response
+
+  // Additional safety check for user object
+  if (!author) {
+    console.error("Tweet has null or undefined user data", { id });
+    return (
+      <Wrapper ref={ref}>
+        <div className="tweet-info">
+          <div className="tweet-info-user">
+            <span className="secondary">User data unavailable for tweet {id}</span>
+          </div>
+          <p>{text}</p>
+        </div>
+      </Wrapper>
+    );
+  }
+
+  const { handle, fullname } = user;
+  
+  // Process text safely
+  const strList = text ? text.split(" ") : [];
   const processedText = strList.filter((str) => !str.startsWith("#")).join(" ");
-  const handle = user && user.handle;
 
   return (
-    <Wrapper>
-      <Link to={`/${handle}`}>
-        <Avatar className="avatar" src={user && user.avatar} alt="avatar" />
+    <Wrapper ref={ref}>
+      <Link to={`/user/${author?.id || 'unknown'}`}>
+        <Avatar className="avatar" src={user.avatar || ''} alt="avatar" />
       </Link>
 
       <div className="tweet-info">
         <div className="tweet-info-user">
-          <Link to={`/${handle}`}>
-            <span className="username">{user && user.fullname}</span>
+          <Link to={`/user/${author?.id || 'unknown'}`}>
+            <span className="username">{fullname}</span>
             <span className="secondary">{`@${handle}`}</span>
             <span className="secondary">{moment(createdAt).fromNow()}</span>
           </Link>
         </div>
 
-        <Link to={`/${handle}/status/${id}`}>
+        <Link to={`/user/${author?.id || 'unknown'}/status/${id}`}>
           <p>{processedText}</p>
         </Link>
 
         <div className="tags">
-          {tags.length
-            ? tags.map((tag) => (
-                <span key={tag} className="tag">
+          {tags && tags.length > 0
+            ? tags.map((tag, index) => (
+                <span key={`${tag}-${index}`} className="tag">
                   {tag}
                 </span>
               ))
             : null}
         </div>
 
-        <Link to={`/${handle}/status/${id}`}>
-          {files && files.length && files[0] ? (
+        <Link to={`/user/${author?.id || 'unknown'}/status/${id}`}>
+          {files && files.length > 0 && files[0] ? (
             <TweetFile src={files[0].url} alt="tweet-file" />
           ) : null}
         </Link>
@@ -147,7 +199,7 @@ const Tweet = ({ tweet }) => {
         <div className="tweet-stats">
           <div>
             <span className="comment">
-              <Link to={`/${handle}/status/${id}`}>
+              <Link to={`/user/${author?.id || 'unknown'}/status/${id}`}>
                 <CommentIcon />
                 {commentsCount ? commentsCount : null}
               </Link>
@@ -173,6 +225,6 @@ const Tweet = ({ tweet }) => {
       </div>
     </Wrapper>
   );
-};
+});
 
 export default Tweet;

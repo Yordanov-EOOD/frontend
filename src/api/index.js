@@ -18,7 +18,9 @@ api.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      // Ensure token is properly formatted with 'Bearer ' prefix
+      config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      console.log('API request with auth header:', config.headers.Authorization);
     }
     return config;
   },
@@ -48,8 +50,11 @@ api.interceptors.response.use(
         
         // If refresh successful, update token and retry original request
         if (response.data.accessToken) {
-          localStorage.setItem('token', response.data.accessToken);
-          api.defaults.headers.Authorization = `Bearer ${response.data.accessToken}`;
+          const token = response.data.accessToken;
+          localStorage.setItem('token', token);
+          // Ensure Bearer prefix is correctly applied
+          api.defaults.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+          originalRequest.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
@@ -122,12 +127,9 @@ export const tweetAPI = {
     const response = await api.get(`/yeets/${id}`);
     return response.data;
   },
-  
-  createTweet: async (tweetData) => {
+    createTweet: async (tweetData) => {
     const response = await api.post('/yeets', {
-      content: tweetData.text,
-      image: tweetData.files && tweetData.files.length > 0 ? tweetData.files[0] : null,
-      tags: tweetData.tags ? tweetData.tags.join(',') : ''
+      content: tweetData.text
     });
     return response.data;
   },
@@ -161,9 +163,21 @@ export const tweetAPI = {
     const response = await api.get(`/yeets/tag/${term}`);
     return response.data;
   },
-  
-  searchByTweet: async (term) => {
+    searchByTweet: async (term) => {
     const response = await api.get(`/yeets/search?query=${term}`);
+    return response.data;
+  },
+
+  getUserTweets: async (userId, page = 1, limit = 10) => {
+    // Use search with userId filter to get posts by specific user
+    const response = await api.get('/yeets/search', {
+      params: {
+        query: '', // Empty query to get all posts
+        userId: userId, // Filter by user ID
+        page: page,
+        limit: limit
+      }
+    });
     return response.data;
   }
 };

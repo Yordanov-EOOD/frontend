@@ -52,32 +52,58 @@ const UserWrapper = styled.div`
 	}
 `;
 
-export const User = ({ user }) => (
-	<UserWrapper>
-		<div className="avatar-handle">
-			<Link to={`/${user && user.handle}`}>
-				<Avatar src={user && user.avatar} alt="avatar" />
-			</Link>
-
-			<div className="handle-fullname">
-				<Link to={`/${user && user.handle}`}>
-					<span>{user && user.fullname}</span>
+export const User = ({ user }) => {
+	// Map backend fields to frontend expected fields with better validation
+	const mappedUser = {
+		...user,
+		handle: user.username || user.handle || user.id || 'unknown', // Fallback to username or id if handle is missing
+		fullname: user.username || user.fullname || user.displayName || 'Unknown User', // Fallback chain
+		avatar: user.image || user.avatar || '', // Map image field to avatar
+		userId: user.authUserId || user.id || user.username, // Use authUserId for profile links with fallbacks
+	};
+	
+	// Debug logging to understand the data structure
+	if (!mappedUser.userId) {
+		console.warn('WhoToFollow: User missing ID fields', {
+			originalUser: user,
+			mappedUser,
+			availableFields: Object.keys(user)
+		});
+	}
+	
+	// Don't render if we don't have a valid userId
+	if (!mappedUser.userId) {
+		console.error('WhoToFollow: Cannot render user without valid ID', user);
+		return null;
+	}
+	
+	return (
+		<UserWrapper>
+			<div className="avatar-handle">
+				<Link to={`/user/${mappedUser.userId}`}>
+					<Avatar src={mappedUser.avatar} alt="avatar" />
 				</Link>
-				<span className="secondary">@{user && user.handle}</span>
-			</div>
-		</div>
 
-		{user && !user.isSelf ? (
-			<Follow sm id={user && user.id} isFollowing={user && user.isFollowing} />
-		) : (
-			<Link to="/settings/profile">
-				<Button sm outline className="action-btn">
-					Edit Profile
-				</Button>
-			</Link>
-		)}
-	</UserWrapper>
-);
+				<div className="handle-fullname">
+					<Link to={`/user/${mappedUser.userId}`}>
+						<span>{mappedUser.fullname}</span>
+					</Link>
+					<span className="secondary">@{mappedUser.handle}</span>
+				</div>
+			</div>
+
+			{mappedUser && !mappedUser.isSelf ? (
+				<Follow sm id={mappedUser.id || mappedUser.userId} isFollowing={mappedUser.isFollowing} />
+			) : (
+				<Link to={`/user/${mappedUser.userId}`}>
+					<Button sm outline className="action-btn">
+						View Profile
+					</Button>
+				</Link>
+			)}
+		</UserWrapper>
+	);
+};
 
 const WhoToFollow = () => {
 	const [users, setUsers] = useState([]);
@@ -88,9 +114,50 @@ const WhoToFollow = () => {
 		const fetchUsers = async () => {
 			try {
 				const data = await userAPI.getUsers();
-				setUsers(data);
+				console.log('WhoToFollow: Raw API response:', data);
+				
+				// Handle different API response structures
+				let usersData;
+				if (data && typeof data === 'object') {
+					if (Array.isArray(data)) {
+						// Direct array response
+						usersData = data;
+					} else if (data.data && data.data.users && Array.isArray(data.data.users)) {
+						// Response with nested structure: { data: { users: [...] }, status: 'success' }
+						usersData = data.data.users;
+					} else if (data.users && Array.isArray(data.users)) {
+						// Response with users property: { users: [...], pagination: {...} }
+						usersData = data.users;
+					} else if (data.data && Array.isArray(data.data)) {
+						// Response with data property: { data: [...] }
+						usersData = data.data;
+					} else {
+						console.error("WhoToFollow: Users data is not in expected format:", data);
+						console.error("WhoToFollow: Available properties:", Object.keys(data));
+						setError("Invalid user data format received");
+						usersData = [];
+					}
+				} else {
+					console.error("WhoToFollow: Invalid API response:", data);
+					setError("Invalid API response format");
+					usersData = [];
+				}
+				
+				console.log('WhoToFollow: Parsed users data:', usersData);
+				
+				// Filter out users without valid IDs before setting state
+				const validUsers = usersData.filter(user => {
+					const hasValidId = user.authUserId || user.id || user.username;
+					if (!hasValidId) {
+						console.warn('WhoToFollow: Filtering out user without valid ID:', user);
+					}
+					return hasValidId;
+				});
+				
+				console.log('WhoToFollow: Valid users after filtering:', validUsers);
+				setUsers(validUsers);
 			} catch (err) {
-				console.error("Error fetching user suggestions:", err);
+				console.error("WhoToFollow: Error fetching user suggestions:", err);
 				setError(err.response?.data?.error || "Failed to load user suggestions");
 			} finally {
 				setLoading(false);
@@ -103,10 +170,13 @@ const WhoToFollow = () => {
 	if (loading) return <Loader />;
 	if (error) return <div>{error}</div>;
 	
+	// Ensure users is always an array before mapping
+	const usersArray = Array.isArray(users) ? users : [];
+	
 	return (
 		<Wrapper>
 			<Header>Who to follow</Header>
-			{users.map(user => (
+			{usersArray.map(user => (
 				<User key={user.id} user={user} />
 			))}
 		</Wrapper>

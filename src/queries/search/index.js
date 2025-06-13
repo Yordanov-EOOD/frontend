@@ -1,4 +1,4 @@
-const API = process.env.REST_API_ENDPOINT;
+const API = process.env.REACT_APP_API_GATEWAY_URL || 'http://localhost:8080';
 
 export async function searchByUser(term) {
   return fetch(`${API}/search/user?term=${encodeURIComponent(term)}`)

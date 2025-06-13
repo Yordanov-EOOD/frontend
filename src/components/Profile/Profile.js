@@ -8,6 +8,7 @@ import Tweet from "../Tweet/Tweet";
 import Loader from "../Loader";
 import { userAPI, tweetAPI } from "../../api";
 import CustomResponse from "../CustomResponse";
+import { useAuth } from "../../context/AuthContext";
 
 const Wrapper = styled.div`
   padding-bottom: 5rem;
@@ -26,31 +27,114 @@ const Wrapper = styled.div`
 `;
 
 const Profile = () => {
-  const { handle } = useParams();
+  const { userId } = useParams();
+  const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [tweets, setTweets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        // Fetch user profile
-        const profileData = await userAPI.getUserProfile(handle);
-        setProfile(profileData);
+        setLoading(true);
+        setError(null);
+        // Reset previous state when navigating
+        setProfile(null);
+        setTweets([]);
         
-        // Fetch user's tweets
-        const userTweets = await tweetAPI.getUserTweets(profileData.id);
-        setTweets(userTweets);
+        console.log("Fetching profile for userId:", userId);
+        
+        // Validate userId before making API call
+        if (!userId || userId === 'undefined' || userId === 'null') {
+          console.error("Profile: Invalid userId provided:", userId);
+          setError("Invalid user ID provided");
+          return;
+        }
+        
+        // Directly use userId (authUserId) for profile lookup
+        const response = await userAPI.getUserProfile(userId);
+        console.log("Profile data received:", response);
+        
+        // Extract user data from the nested response structure
+        let profileData;
+        if (response && response.data && response.data.user) {
+          // Backend structure: { status: "success", data: { user: {...} } }
+          profileData = response.data.user;
+        } else if (response && response.user) {
+          // Alternative structure: { user: {...} }
+          profileData = response.user;
+        } else if (response && response.data) {
+          // Direct data: { data: {...} }
+          profileData = response.data;
+        } else if (response && typeof response === 'object' && response.id) {
+          // Direct user object
+          profileData = response;
+        } else {
+          console.error("Profile: Invalid profile data structure:", response);
+          setError("Invalid profile data received");
+          return;
+        }
+        
+        console.log("Extracted profile data:", profileData);
+        
+        // Validate that we received valid profile data
+        if (!profileData || typeof profileData !== 'object') {
+          console.error("Profile: Invalid profile data received:", profileData);
+          setError("Invalid profile data received");
+          return;
+        }
+        
+        // Check if this is the current user's own profile
+        const isSelf = currentUser && (
+          currentUser.id === profileData.id ||
+          currentUser.id === profileData.authUserId ||
+          currentUser.authUserId === profileData.id ||
+          currentUser.authUserId === profileData.authUserId ||
+          userId === currentUser.id ||
+          userId === currentUser.authUserId
+        );
+        
+        // Set the isSelf flag on the profile data
+        const enhancedProfile = {
+          ...profileData,
+          isSelf: isSelf,
+          // Map backend fields to frontend expected fields
+          handle: profileData.username || profileData.handle || profileData.id || 'unknown',
+          fullname: profileData.username || profileData.fullname || profileData.displayName || 'Unknown User',
+          avatar: profileData.image || profileData.avatar || '',
+        };
+        
+        console.log("Enhanced profile with isSelf:", enhancedProfile);
+        setProfile(enhancedProfile);
+        
+        // Fetch user's tweets using the authUserId
+        if (profileData && (profileData.authUserId || profileData.id)) {
+          try {
+            const authUserId = profileData.authUserId || profileData.id;
+            const userTweets = await tweetAPI.getUserTweets(authUserId);
+            setTweets(Array.isArray(userTweets) ? userTweets : []);
+          } catch (tweetError) {
+            console.warn("Error fetching user tweets:", tweetError);
+            setTweets([]); // Set empty array if tweets fail to load
+          }
+        }
       } catch (err) {
-        setError(err.response?.data?.error || "Failed to fetch profile");
+        console.error("Error fetching profile:", err);
+        setError(err.response?.data?.error || err.message || "Failed to fetch profile");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfileData();
-  }, [handle]);
+    // Only fetch if we have a valid userId
+    if (userId && userId !== 'undefined' && userId !== 'null') {
+      fetchProfileData();
+    } else {
+      console.error("Profile: No valid userId provided:", userId);
+      setError("No user ID provided");
+      setLoading(false);
+    }
+  }, [userId, currentUser?.id, currentUser?.authUserId]); // Added currentUser dependencies
 
   if (loading) return <Loader />;
 
@@ -62,7 +146,7 @@ const Profile = () => {
     <Wrapper>
       <Header>
         <div className="profile-top">
-          <span>{profile.fullname}</span>
+          <span>{profile.fullname || profile.username || 'Unknown User'}</span>
           <span className="tweetsCount">
             {tweets.length ? `${tweets.length} Tweets` : "No Tweets"}
           </span>

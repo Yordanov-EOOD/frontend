@@ -65,7 +65,7 @@ const Comment = ({ comment }) => {
       <div className="comment-info">
         <div className="comment-info-user">
           <span className="username">{user && user.fullname}</span>
-          <Link to={`/${handle}`}>
+          <Link to={`/user/${user?.id || 'unknown'}`}>
             <span className="secondary">{`@${handle}`}</span>
             <span className="secondary">{moment(createdAt).fromNow()}</span>
           </Link>

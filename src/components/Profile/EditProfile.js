@@ -64,18 +64,64 @@ const EditProfile = () => {
 		const fetchProfile = async () => {
 		  try {
 			// Add debugging
-			console.log("Current user object:", user);
+			console.log("EditProfile: Current user object:", user);
 			
-			if (user && user.authId) {
-			  console.log("Using authId:", user.authId);
-			  const profileData = await userAPI.getUserProfile(user.authId);
-			  setProfile(profileData);
+			if (user && user.id) {
+			  console.log("EditProfile: Using user id:", user.id);
+			  const response = await userAPI.getUserProfile(user.id);
+			  console.log("EditProfile: Raw profile response:", response);
+			  
+			  // Extract user data from the nested response structure (same as Profile.js)
+			  let profileData;
+			  if (response && response.data && response.data.user) {
+				// Backend structure: { status: "success", data: { user: {...} } }
+				profileData = response.data.user;
+			  } else if (response && response.user) {
+				// Alternative structure: { user: {...} }
+				profileData = response.user;
+			  } else if (response && response.data) {
+				// Direct data: { data: {...} }
+				profileData = response.data;
+			  } else if (response && typeof response === 'object' && response.id) {
+				// Direct user object
+				profileData = response;
+			  } else {
+				console.error("EditProfile: Invalid profile data structure:", response);
+				setError("Invalid profile data received");
+				return;
+			  }
+
+			  console.log("EditProfile: Extracted profile data:", profileData);
+			  
+			  // Validate that we received valid profile data
+			  if (!profileData || typeof profileData !== 'object') {
+				console.error("EditProfile: Invalid profile data received:", profileData);
+				setError("Invalid profile data received");
+				return;
+			  }
+
+			  // Map backend fields to frontend expected fields for the edit form
+			  const mappedProfile = {
+				...profileData,
+				firstname: profileData.username || profileData.fullname || profileData.displayName || '',
+				handle: profileData.username || profileData.handle || profileData.id || '',
+				avatar: profileData.image || profileData.avatar || '',
+				bio: profileData.bio || '',
+				coverPhoto: profileData.coverPhoto || '',
+				location: profileData.location || '',
+				website: profileData.website || '',
+				dob: profileData.dob || '',
+				email: profileData.email || ''
+			  };
+
+			  console.log("EditProfile: Mapped profile for editing:", mappedProfile);
+			  setProfile(mappedProfile);
 			} else {
-			  console.log("User or authId is missing:", user);
+			  console.log("EditProfile: User or user.id is missing:", user);
 			  setError("User information not available");
 			}
 		  } catch (err) {
-			console.error("Error fetching profile:", err);
+			console.error("EditProfile: Error fetching profile:", err);
 			setError(err.response?.data?.error || "Failed to load profile");
 		  } finally {
 			setLoading(false);

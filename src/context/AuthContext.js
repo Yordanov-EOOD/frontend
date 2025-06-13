@@ -8,9 +8,16 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [verificationAttempted, setVerificationAttempted] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => {
+      // Skip verification if we've already attempted it in this session
+      if (verificationAttempted) {
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
       
@@ -20,37 +27,53 @@ export const AuthProvider = ({ children }) => {
           await apiClient.get('/auth/verify');
           setUser(JSON.parse(storedUser));
         } catch (err) {
+          console.error("Token verification failed:", err);
           // Clear invalid tokens/data
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           setUser(null);
         }
       }
+
+      // Mark that we've attempted verification
+      setVerificationAttempted(true);
       setLoading(false);
     };
 
     initAuth();
-  }, []);
+  }, [verificationAttempted]);
 
   const login = async (credentials) => {
     try {
       setError(null);
+      console.log("Sending login request with:", { email: credentials.email });
+      
       const response = await apiClient.post('/auth/login', credentials);
+      console.log("Login response:", response.data);
+      
       const { accessToken, user: userData } = response.data;
       
-      if (accessToken && userData) {
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-        setUser(userData);
-        return { accessToken, user: userData };
-      } else {
-        throw new Error('Invalid response from server');
+      if (!accessToken) {
+        console.error("Missing access token in response");
+        throw new Error('Missing access token in server response');
       }
+      
+      if (!userData) {
+        console.error("Missing user data in response");
+        throw new Error('Missing user data in server response');
+      }
+      
+      // Store authentication data
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      
+      return { accessToken, user: userData };
     } catch (err) {
-      const message = err.response?.data?.message || 'Login failed';
+      console.error("Login error:", err);
+      const message = err.response?.data?.error || 'Login failed';
       setError(message);
-      toast.error(message);
-      throw err;
+      throw err; // Re-throw for component handling
     }
   };
 
@@ -69,9 +92,8 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid response from server');
       }
     } catch (err) {
-      const message = err.response?.data?.message || 'Registration failed';
+      const message = err.response?.data?.error || 'Registration failed';
       setError(message);
-      toast.error(message);
       throw err;
     }
   };
@@ -85,6 +107,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       setUser(null);
+      setVerificationAttempted(false); // Reset verification state on logout
     }
   };
 

@@ -29,9 +29,9 @@ const AppRouter = () => {
           <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
-          <Route path="/:handle/status/:tweetId" element={<ProtectedRoute><MasterTweet /></ProtectedRoute>} />
+          <Route path="/user/:userId/status/:tweetId" element={<ProtectedRoute><MasterTweet /></ProtectedRoute>} />
           <Route path="/settings/profile" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
-          <Route path="/:handle" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/user/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         <Suggestion />

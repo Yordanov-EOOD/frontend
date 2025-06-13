@@ -22,10 +22,16 @@ export default ({ changeToSignup }) => {
 
     setLoading(true);
     try {
-      await login(email.value, password.value);
+      const credentials = {
+        email: email.value,
+        password: password.value
+      };
+      console.log("Login data being sent:", JSON.stringify(credentials));
+      await login(credentials);
       toast.success(`You are logged in`);
       // Don't need to reset values as the page will redirect
     } catch (err) {
+      console.error("Login error details:", err);
       toast.error(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);

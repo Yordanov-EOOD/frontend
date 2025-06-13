@@ -84,6 +84,23 @@ const ProfileInfo = ({ profile }) => {
     );
   }
 
+  // Map backend fields to frontend expected fields
+  const mappedProfile = {
+    ...profile,
+    handle: profile.username || profile.handle || profile.id,
+    fullname: profile.username || profile.fullname || profile.displayName || 'Unknown User',
+    avatar: profile.image || profile.avatar || '',
+    bio: profile.bio || '',
+    location: profile.location || '',
+    website: profile.website || '',
+    dob: profile.dob || '',
+    followersCount: profile.followersCount || 0,
+    followingCount: profile.followingCount || 0,
+    isFollowing: profile.isFollowing || false,
+    isSelf: profile.isSelf || false,
+    coverPhoto: profile.coverPhoto || '',
+  };
+
   const {
     id,
     coverPhoto,
@@ -98,7 +115,7 @@ const ProfileInfo = ({ profile }) => {
     followingCount,
     handle,
     fullname,
-  } = profile;
+  } = mappedProfile;
 
   return (
     <Wrapper>

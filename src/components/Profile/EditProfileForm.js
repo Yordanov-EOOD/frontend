@@ -11,61 +11,76 @@ import CoverPhoto from "../../styles/CoverPhoto";
 import Avatar from "../../styles/Avatar";
 import { uploadImage } from "../../utils";
 import { editProfile } from "../../queries/profile";
+import { useAuth } from "../../context/AuthContext";
 
 const EditProfileForm = ({ profile }) => {
   const [avatarState, setAvatar] = useState("");
   const [coverPhotoState, setCoverPhoto] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
 
-  const firstname = useInput(profile && profile.firstname);
-  const lastname = useInput(profile && profile.lastname);
-  const location = useInput(profile && profile.location);
-  const website = useInput(profile && profile.website);
-  const dob = useInput(profile && profile.dob);
-  const avatar = useInput(profile && profile.avatar);
-  const bio = useInput(profile && profile.bio);
-  const coverPhoto = useInput(profile && profile.coverPhoto);
+  console.log("EditProfileForm: Received profile:", profile);
 
-  const handle = profile && profile.handle;
+  // Use proper field mapping with fallbacks
+  const name = useInput(profile?.firstname || profile?.username || profile?.fullname || profile?.displayName || "");
+  const bio = useInput(profile?.bio || "");
+  const avatar = useInput(profile?.avatar || profile?.image || "");
+  const coverPhoto = useInput(profile?.coverPhoto || "");
+  const location = useInput(profile?.location || "");
+  const website = useInput(profile?.website || "");
+  const email = useInput(profile?.email || "");
+
+  const handle = profile?.handle || profile?.username || profile?.id;
 
   const handleEditProfile = async (e) => {
     e.preventDefault();
 
-    if (!firstname.value || !lastname.value) {
-      return toast.error("You cannot leaveout firstname/lastname empty");
+    if (!name.value) {
+      return toast.error("You cannot leave name empty");
+    }
+
+    const userAuthId = currentUser?.id || currentUser?.authUserId;
+    if (!userAuthId) {
+      return toast.error("User authentication required");
     }
 
     setLoading(true);
     try {
-      await editProfile({
-        firstname: firstname.value,
-        lastname: lastname.value,
-        dob: dob.value,
+      const updateData = {
+        name: name.value,
         bio: bio.value,
-        location: location.value,
-        website: website.value,
         avatar: avatarState ? avatarState : avatar.value,
         coverPhoto: coverPhotoState ? coverPhotoState : coverPhoto.value,
-      });
+        location: location.value,
+        website: website.value,
+        email: email.value,
+      };
+      
+      console.log("EditProfileForm: Submitting update data:", updateData);
+      console.log("EditProfileForm: Using userAuthId:", userAuthId);
+
+      await editProfile(updateData, userAuthId);
 
       toast.success("Your profile has been updated 🥳");
     } catch (err) {
+      console.error("EditProfileForm: Error updating profile:", err);
       setLoading(false);
       return displayError(err);
     }
     setLoading(false);
     [
-      firstname,
-      lastname,
-      dob,
-      location,
-      website,
+      name,
+      bio,
       avatar,
       coverPhoto,
+      location,
+      website,
+      email,
     ].map((field) => field.setValue(""));
 
-    navigate(`/${handle}`);
+    // Navigate to user profile using the current user's auth ID
+    navigate(`/user/${userAuthId}`);
   };
 
   const handleCoverPhoto = async (e) => {
@@ -101,45 +116,56 @@ const EditProfileForm = ({ profile }) => {
 
       <Input
         lg={true}
-        text="First Name"
-        value={firstname.value}
-        onChange={firstname.onChange}
+        text="Name"
+        value={name.value}
+        onChange={name.onChange}
       />
+
       <Input
         lg={true}
-        text="Last Name"
-        value={lastname.value}
-        onChange={lastname.onChange}
+        text="Email"
+        type="email"
+        value={email.value}
+        onChange={email.onChange}
       />
-      <div className="bio-wrapper">
-        <label className="bio" htmlFor="bio">
-          Bio
-        </label>
-        <TextareaAutosize
-          id="bio"
-          placeholder="Bio"
-          value={bio.value}
-          onChange={bio.onChange}
-        />
-      </div>
-      <Input
-        lg={true}
-        text="Website"
-        value={website.value}
-        onChange={website.onChange}
-      />
-      <Input
-        lg={true}
-        text="Date of Birth"
-        value={dob.value}
-        onChange={dob.onChange}
-      />
+
       <Input
         lg={true}
         text="Location"
         value={location.value}
         onChange={location.onChange}
       />
+
+      <Input
+        lg={true}
+        text="Website"
+        type="url"
+        value={website.value}
+        onChange={website.onChange}
+      />
+      
+      <div className="bio-input">
+        <label htmlFor="bio-textarea">Bio</label>
+        <TextareaAutosize
+          id="bio-textarea"
+          placeholder="Tell us about yourself..."
+          value={bio.value}
+          onChange={bio.onChange}
+          minRows={3}
+          maxRows={6}
+          style={{
+            width: '100%',
+            padding: '12px',
+            border: '1px solid #ccc',
+            borderRadius: '8px',
+            fontSize: '16px',
+            fontFamily: 'inherit',
+            resize: 'none',
+            marginTop: '8px'
+          }}
+        />
+      </div>
+
       <Button outline disabled={loading} type="submit">
         {loading ? "Saving" : "Save"}
       </Button>
